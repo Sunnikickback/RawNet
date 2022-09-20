@@ -16,7 +16,7 @@ from models.RawNetBasicBlock import Bottle2neck
 
 def build_argument_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--DB_dir", type=str, default="./VoxCeleb1/")
+    parser.add_argument("--DB_dir", type=str, default="../../../VoxCeleb1/")
     parser.add_argument("--save_path", type=str, default=None)
     return parser
 
@@ -58,7 +58,7 @@ def compute_embeddings(DB_dir, save_path=None):
 
     model.load_state_dict(
         torch.load(
-            "RawNet/python/RawNet3/models/weights/model.pt",
+            "./models/weights/model.pt",
             map_location=lambda storage, loc: storage,
         )["model"]
     )
@@ -70,7 +70,7 @@ def compute_embeddings(DB_dir, save_path=None):
         model = model.to("cuda")
         gpu = True
 
-    with open("../../../cleaned_test_list.txt", "r") as f:
+    with open("../../trials/list_test_all_cleaned.txt", "r") as f:
         trials = f.readlines()
 
         files = list(itertools.chain(*[x.strip().split()[-2:] for x in trials]))
@@ -83,26 +83,29 @@ def compute_embeddings(DB_dir, save_path=None):
             embd_dic[f] = extract_speaker_embd(
                 model, os.path.join(DB_dir, f), n_samples=48000, gpu=gpu
             )[0].detach().cpu().numpy()
+            if save_path is not None:
+                id = f.split('/')[0]
+                result_dir = os.path.join(save_path, id)
+                if not os.path.exists(result_dir):
+                    os.makedirs(result_dir)
 
-        ids_dict = {}
-        for key in embd_dic.keys():
-            id = key.split('/')[0]
-            if id in ids_dict:
-                ids_dict[id].append(embd_dic[key])
-            else:
-                ids_dict[id] = [embd_dic[key]]
+                np.save(os.path.join(result_dir, get_next_file_name(result_dir)), embd_dic[f])
 
-    if save_path is not None:
-        for id in ids_dict.keys():
-            for i, emb in enumerate(ids_dict[id]):
-                np.save(os.join(save_path, id, i)+'.npy', emb)
-    return ids_dict
+    return embd_dic
+
+
+def get_next_file_name(result_dir):
+    list = os.listdir(result_dir)
+    if len(list) != 0:
+        return str(int(list[-1].split('.')[0])+1)+".npy"
+    else:
+        return "0.npy"
 
 
 def main():
     parser = build_argument_parser()
     args = parser.parse_args()
-    ids_dict = compute_embeddings(DB_dir=args.DB_dir, save_path=args.save_path)
+    embd_dic = compute_embeddings(DB_dir=args.DB_dir, save_path=args.save_path)
 
 
 if __name__ == "__main__":
